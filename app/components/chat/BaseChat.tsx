@@ -1,5 +1,5 @@
 import type { Message } from 'ai';
-import React, { type RefCallback } from 'react';
+import React, { type RefCallback, useRef, useState, useEffect } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -25,6 +25,7 @@ interface BaseChatProps {
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   enhancePrompt?: () => void;
+  handleFileUpload?: (files: FileList) => void;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -36,6 +37,12 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const TEXTAREA_MIN_HEIGHT = 76;
+
+interface FilePreview {
+  name: string;
+  type: string;
+  url?: string;
+}
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
   (
@@ -54,10 +61,33 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       handleInputChange,
       enhancePrompt,
       handleStop,
+      handleFileUpload,
     },
     ref,
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+    const [filePreviews, setFilePreviews] = useState<FilePreview[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileSelection = (files: FileList) => {
+      const newPreviews = Array.from(files).map(file => ({
+        name: file.name,
+        type: file.type,
+        url: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      }));
+      setFilePreviews(prev => [...prev, ...newPreviews]);
+      handleFileUpload?.(files);
+    };
+
+    useEffect(() => {
+      return () => {
+        filePreviews.forEach(preview => {
+          if (preview.url) {
+            URL.revokeObjectURL(preview.url);
+          }
+        });
+      };
+    }, [filePreviews]);
 
     return (
       <div
@@ -108,6 +138,37 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     'shadow-sm border border-bolt-elements-borderColor bg-bolt-elements-prompt-background backdrop-filter backdrop-blur-[8px] rounded-lg overflow-hidden',
                   )}
                 >
+                  {filePreviews.length > 0 && (
+                    <div className="px-4 py-3 border-b border-bolt-elements-borderColor">
+                      <div className="flex flex-wrap gap-3">
+                        {filePreviews.map((file, index) => (
+                          <div key={index} className="relative group">
+                            <div className="w-16 h-16 bg-gray-800 rounded-md overflow-hidden">
+                              {file.type.startsWith('image/') ? (
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center">
+                                  <div className="text-blue-500 text-2xl mb-1">File</div>
+                                  <div className="text-white text-xs truncate px-1">{file.name}</div>
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setFilePreviews(prev => prev.filter((_, i) => i !== index))}
+                              className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full p-1 shadow-md"
+                            >
+                              <div className="i-ph:x text-xs"></div>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <textarea
                     ref={textareaRef}
                     className={`w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-md text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent`}
@@ -151,6 +212,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   </ClientOnly>
                   <div className="flex justify-between text-sm p-4 pt-2">
                     <div className="flex gap-1 items-center">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={(e) => handleFileSelection(e.target.files!)}
+                        className="hidden"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.txt,.doc,.docx,.py,.ipynb,.js,.mjs,.cjs,.jsx,.html,.css,.scss,.sass,.ts,.tsx,.java,.cs,.php,.c,.cc,.cpp,.cxx,.h,.hh,.hpp,.rs,.swift,.go,.rb,.kt,.kts,.scala,.sh,.bash,.zsh,.bat,.csv,.log,.ini,.cfg,.config,.json,.yaml,.yml,.toml,.lua,.sql,.md,.tex,.latex,.asm,.ino,.s"
+                      />
+                      <IconButton
+                        title="Upload files"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <div className="i-ph:link-simple text-xl"></div>
+                      </IconButton>
                       <IconButton
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
