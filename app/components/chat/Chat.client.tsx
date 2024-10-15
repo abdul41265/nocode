@@ -70,6 +70,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
+  const [filesList, setFilesList]=useState<any[]>([])
 
   const { showChat } = useStore(chatStore);
 
@@ -83,6 +84,36 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     },
     onFinish: () => {
       logger.debug('Finished streaming');
+    },
+    experimental_prepareRequestBody:  (options):any => {
+      const { messages: previousMessages, requestData, requestBody } = options;
+  console.log(previousMessages, "previousMessages")
+    
+      const messageToModifyIndex = previousMessages?.length - 1; 
+      const updatedMessages = previousMessages.map((msg, index) => {
+        if (index === messageToModifyIndex) {
+          const newAttachments = filesList?.map(file => ({
+            contentType: file.type,
+            name: file.name,
+            url: file.url
+          }));
+       
+          return {
+            ...msg,
+          
+            experimental_attachments: [
+              ...(msg.experimental_attachments || []), 
+             ...newAttachments ? newAttachments : []
+            ]
+          };
+        }
+        return msg; 
+      });
+  setFilesList(undefined as any)
+     
+      return {
+        messages: updatedMessages 
+      }; 
     },
     initialMessages,
   });
@@ -170,24 +201,36 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
     if (fileModifications !== undefined) {
       const diff = fileModificationsToHTML(fileModifications);
-
-      /**
-       * If we have file modifications we append a new user message manually since we have to prefix
-       * the user input with the file modifications and we don't want the new user input to appear
-       * in the prompt. Using `append` is almost the same as `handleSubmit` except that we have to
-       * manually reset the input and we'd have to manually pass in file attachments. However, those
-       * aren't relevant here.
-       */
-      append({ role: 'user', content: `${diff}\n\n${_input}` });
-
-      /**
-       * After sending a new message we reset all modifications since the model
-       * should now be aware of all the changes.
-       */
+      
+      // Logging the attachments
+      console.log('Sending with attachments:', {
+        role: 'user',
+        content: `${diff}\n\n${_input}`,
+        experimental_attachments:filesList ? filesList : []
+      });
+    
+      append({ 
+        role: 'user', 
+        content: `${diff}\n\n${_input}`, 
+        experimental_attachments: filesList ? filesList : [],
+      });
+    
       workbenchStore.resetAllFileModifications();
     } else {
-      append({ role: 'user', content: _input });
+      // Logging the attachments in the else case
+      console.log('Sending without file modifications, attachments:', {
+        role: 'user',
+        content: _input,
+        experimental_attachments: filesList ? filesList : []
+      });
+    
+      append({ 
+        role: 'user', 
+        content: _input, 
+        experimental_attachments: filesList ? filesList : []
+      });
     }
+    
 
     setInput('');
 
@@ -212,6 +255,8 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       messageRef={messageRef}
       scrollRef={scrollRef}
       handleInputChange={handleInputChange}
+      setFilesList={setFilesList}
+      filesList={filesList}
       handleStop={abort}
       messages={messages.map((message, i) => {
         if (message.role === 'user') {

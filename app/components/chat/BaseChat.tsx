@@ -21,6 +21,8 @@ interface BaseChatProps {
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
   input?: string;
+  setFilesList?:any,
+  filesList?:any;
   handleStop?: () => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -61,6 +63,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       handleInputChange,
       enhancePrompt,
       handleStop,
+      filesList,
+      setFilesList,
       handleFileUpload,
     },
     ref,
@@ -69,15 +73,46 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [filePreviews, setFilePreviews] = useState<FilePreview[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileSelection = (files: FileList) => {
-      const newPreviews = Array.from(files).map(file => ({
-        name: file.name,
-        type: file.type,
-        url: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      }));
-      setFilePreviews(prev => [...prev, ...newPreviews]);
+   
+    const handleFileSelection = async (files: FileList) => {
+      // Upload each file and update the file list with the server's response
+      const uploadFile = async (file: File) => {
+        const formData = new FormData();
+        formData.append('files', file);
+    
+        const response = await fetch('http://localhost:5173/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+    
+        if (!response.ok) {
+          throw new Error('File upload failed');
+        }
+    
+        const serverResponse:any = await response.json();
+        
+        // Return the server files array from the response (we assume only one file per upload)
+        return serverResponse.files[0];
+      };
+    
+      // Upload files and get their details from the server
+      const uploadedFiles = await Promise.all(
+        Array.from(files).map(async (file) => {
+          const fileDataFromServer = await uploadFile(file);
+          return {
+            name: fileDataFromServer.name,
+            type: fileDataFromServer.type,
+            url: `http://localhost:5173/uploads/${fileDataFromServer.link}`,  // This is the URL provided by the server
+          };
+        })
+      );
+    
+      // Update the file list with the data returned from the server
+      setFilesList((prev: any[] = []) => [...prev, ...uploadedFiles]);
+    
       handleFileUpload?.(files);
     };
+    
 
     useEffect(() => {
       return () => {
@@ -138,10 +173,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     'shadow-sm border border-bolt-elements-borderColor bg-bolt-elements-prompt-background backdrop-filter backdrop-blur-[8px] rounded-lg overflow-hidden',
                   )}
                 >
-                  {filePreviews.length > 0 && (
+                  {filesList?.length > 0 && (
                     <div className="px-4 py-3 border-b border-bolt-elements-borderColor">
                       <div className="flex flex-wrap gap-3">
-                        {filePreviews.map((file, index) => (
+                        {filesList?.map((file:any, index:any) => (
                           <div key={index} className="relative group">
                             <div className="w-16 h-16 bg-gray-800 rounded-md overflow-hidden">
                               {file.type.startsWith('image/') ? (
@@ -158,7 +193,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               )}
                             </div>
                             <button
-                              onClick={() => setFilePreviews(prev => prev.filter((_, i) => i !== index))}
+                              onClick={() => setFilesList((prev:any) => prev.filter((_:any, i:any) => i !== index))}
                               className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full p-1 shadow-md"
                             >
                               <div className="i-ph:x text-xs"></div>
