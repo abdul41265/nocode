@@ -76,15 +76,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
   const [animationScope, animate] = useAnimate();
 
-  const { 
-    messages, 
-    isLoading, 
-    input, 
-    handleInputChange, 
-    setInput, 
-    stop, 
-    append 
-  } = useChat({
+  const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
     api: '/api/chat',
     onError: (error) => {
       logger.error('Request failed\n\n', error);
@@ -93,43 +85,38 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     onFinish: () => {
       logger.debug('Finished streaming');
     },
-    experimental_prepareRequestBody: (options) => {
-   
-      const { messages: previousMessages } = options;
+    experimental_prepareRequestBody:  (options):any => {
+      const { messages: previousMessages, requestData, requestBody } = options;
+  console.log(previousMessages, "previousMessages")
     
-    
-     
-      const messageToModifyIndex = previousMessages?.length - 1;
-    
-    
-      const newAttachments = filesList?.map(file => ({
-        contentType: file.type,
-        name: file.name,
-        url: file.url
-      }));
-    
-    
+      const messageToModifyIndex = previousMessages?.length - 1; 
       const updatedMessages = previousMessages.map((msg, index) => {
         if (index === messageToModifyIndex) {
+          const newAttachments = filesList?.map(file => ({
+            contentType: file.type,
+            name: file.name,
+            url: file.url
+          }));
+       
           return {
             ...msg,
+          
             experimental_attachments: [
               ...(msg.experimental_attachments || []), 
-              ...(newAttachments ? newAttachments : []) 
+             ...newAttachments ? newAttachments : []
             ]
           };
         }
         return msg; 
       });
-    
-    setFilesList([])
+  setFilesList(undefined as any)
+     
       return {
-        messages: updatedMessages
-      };
+        messages: updatedMessages 
+      }; 
     },
-    initialMessages, 
+    initialMessages,
   });
-  
 
   const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
   const { parsedMessages, parseMessages } = useMessageParser();
@@ -141,18 +128,10 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   }, []);
 
   useEffect(() => {
- const newStoreMessages = messages?.map((item:any)=>{
-
-  return{
-    ...item,
-    experimental_attachments:item?.experimental_attachments ? item?.experimental_attachments : filesList || []
-  }
- })
-    parseMessages(newStoreMessages, isLoading);
-    console.log(newStoreMessages, "messages effect")
+    parseMessages(messages, isLoading);
 
     if (messages.length > initialMessages.length) {
-      storeMessageHistory(newStoreMessages).catch((error) => toast.error(error.message));
+      storeMessageHistory(messages).catch((error) => toast.error(error.message));
     }
   }, [messages, isLoading, parseMessages]);
 
@@ -200,49 +179,68 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
   const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
     const _input = messageInput || input;
-  
+
     if (_input.length === 0 || isLoading) {
       return;
     }
-  
+
+    /**
+     * @note (delm) Usually saving files shouldn't take long but it may take longer if there
+     * many unsaved files. In that case we need to block user input and show an indicator
+     * of some kind so the user is aware that something is happening. But I consider the
+     * happy case to be no unsaved files and I would expect users to save their changes
+     * before they send another message.
+     */
     await workbenchStore.saveAllFiles();
-  
+
     const fileModifications = workbenchStore.getFileModifcations();
-  
+
     chatStore.setKey('aborted', false);
-  
+
     runAnimation();
-  
+
     if (fileModifications !== undefined) {
       const diff = fileModificationsToHTML(fileModifications);
-  
-    
-  
-      append({
+      
+      // Logging the attachments
+      console.log('Sending with attachments:', {
         role: 'user',
         content: `${diff}\n\n${_input}`,
-        experimental_attachments: filesList || [],
+        experimental_attachments:filesList ? filesList : []
       });
-  
+    
+      append({ 
+        role: 'user', 
+        content: `${diff}\n\n${_input}`, 
+        experimental_attachments: filesList ? filesList : [],
+      });
+    
       workbenchStore.resetAllFileModifications();
     } else {
-     
-  
-      append({
+      // Logging the attachments in the else case
+      console.log('Sending without file modifications, attachments:', {
         role: 'user',
         content: _input,
-        data:filesList ? filesList : [],
-        experimental_attachments: filesList || []
+        experimental_attachments: filesList ? filesList : []
+      });
+    
+      append({ 
+        role: 'user', 
+        content: _input, 
+        experimental_attachments: filesList ? filesList : []
       });
     }
-  
+    
+
     setInput('');
+
     resetEnhancer();
+
     textareaRef.current?.blur();
   };
 
   const [messageRef, scrollRef] = useSnapScroll();
-console.log(messages, "latest messages")
+
   return (
     <BaseChat
       ref={animationScope}
