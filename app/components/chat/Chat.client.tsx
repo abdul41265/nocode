@@ -93,7 +93,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     onFinish: () => {
       logger.debug('Finished streaming');
     },
-    experimental_prepareRequestBody: (options) => {
+    experimental_prepareRequestBody: (options) :any => {
    
       const { messages: previousMessages } = options;
     
