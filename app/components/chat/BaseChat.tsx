@@ -75,7 +75,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
    
     const handleFileSelection = async (files: FileList) => {
-      // Upload each file and update the file list with the server's response
+   
       const uploadFile = async (file: File) => {
         const formData = new FormData();
         formData.append('files', file);
@@ -91,23 +91,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     
         const serverResponse:any = await response.json();
         
-        // Return the server files array from the response (we assume only one file per upload)
+       
         return serverResponse.files[0];
       };
     
-      // Upload files and get their details from the server
+      
       const uploadedFiles = await Promise.all(
         Array.from(files).map(async (file) => {
           const fileDataFromServer = await uploadFile(file);
           return {
-            name: fileDataFromServer.name,
-            type: fileDataFromServer.type,
-            url: `http://localhost:5173/uploads/${fileDataFromServer.link}`,  // This is the URL provided by the server
+            name: fileDataFromServer?.name,
+            type: fileDataFromServer?.type,
+            url: `http://localhost:5173/uploads/${fileDataFromServer.link}`,  
           };
         })
       );
     
-      // Update the file list with the data returned from the server
+     
       setFilesList((prev: any[] = []) => [...prev, ...uploadedFiles]);
     
       handleFileUpload?.(files);
@@ -116,8 +116,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
     useEffect(() => {
       return () => {
-        filePreviews.forEach(preview => {
-          if (preview.url) {
+        filePreviews?.forEach(preview => {
+          if (preview?.url) {
             URL.revokeObjectURL(preview.url);
           }
         });
