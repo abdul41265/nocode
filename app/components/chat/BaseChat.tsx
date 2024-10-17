@@ -74,8 +74,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const fileInputRef = useRef<HTMLInputElement>(null);
 
    
-    const handleFileSelection = async (files: FileList) => {
-   
+    const handleFileSelection = async (files: FileList, fileInputRef: React.RefObject<HTMLInputElement>) => {
       const uploadFile = async (file: File) => {
         const formData = new FormData();
         formData.append('files', file);
@@ -89,29 +88,34 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           throw new Error('File upload failed');
         }
     
-        const serverResponse:any = await response.json();
-        
-       
+        const serverResponse: any = await response.json();
+    
         return serverResponse.files[0];
       };
     
-      
       const uploadedFiles = await Promise.all(
         Array.from(files).map(async (file) => {
           const fileDataFromServer = await uploadFile(file);
           return {
             name: fileDataFromServer?.name,
             type: fileDataFromServer?.type,
-            url: `http://localhost:5173/uploads/${fileDataFromServer.link}`,  
+            url: `http://localhost:5173/uploads/${fileDataFromServer.link}`,
           };
         })
       );
     
-     
+   
       setFilesList((prev: any[] = []) => [...prev, ...uploadedFiles]);
+    
+    
+      if (fileInputRef?.current) {
+        fileInputRef.current.value = '';
+      }
+    
     
       handleFileUpload?.(files);
     };
+    
     
 
     useEffect(() => {
@@ -250,7 +254,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       <input
                         type="file"
                         ref={fileInputRef}
-                        onChange={(e) => handleFileSelection(e.target.files!)}
+                        onChange={(e) => handleFileSelection(e.target.files!, fileInputRef)}
                         className="hidden"
                         multiple
                         accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.txt,.doc,.docx,.py,.ipynb,.js,.mjs,.cjs,.jsx,.html,.css,.scss,.sass,.ts,.tsx,.java,.cs,.php,.c,.cc,.cpp,.cxx,.h,.hh,.hpp,.rs,.swift,.go,.rb,.kt,.kts,.scala,.sh,.bash,.zsh,.bat,.csv,.log,.ini,.cfg,.config,.json,.yaml,.yml,.toml,.lua,.sql,.md,.tex,.latex,.asm,.ino,.s"
